@@ -1,0 +1,1203 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+# Parte 1
+
+La primer parte consiste en la carga del dataset, un análisis preliminar de sus variables, la limpieza del mismo, la introducción de algunas variables de interés, y la incorporación de nueva información.
+
+## Dataset
+
+Se comienza leyendo el dataset "2021: Aterrizajes y despegues procesados por la Administración Nacional de Aviación Civil (ANAC) Ministerio de Transporte" (https://datos.gob.ar/dataset/transporte-aterrizajes-despegues-procesados-por-administracion-nacional-aviacion-civil-anac).
+
+```{r}
+
+datos.completo = read.csv("2021-informe-ministerio.csv", sep = ";",encoding = "UTF-8")
+head(datos.completo)
+ncol(datos.completo)
+nrow(datos.completo)
+
+```
+
+El dataset tiene 11 columnas (variables) y 328136 filas (observaciones).
+
+Se realiza un análisis preliminar de sus variables.
+
+### _Fecha_
+
+La variable _Fecha_ es de tipo factor y su rango va del 1 de enero del 2020 al 31 de diciembre de 2020.
+
+```{r}
+
+class(datos.completo$Fecha)
+min(as.Date(datos.completo$Fecha, "%d/%m/%y"))
+max(as.Date(datos.completo$Fecha, "%d/%m/%y"))
+
+```
+
+### _Hora.UTC_
+
+La variable _Hora.UTC_ es de tipo factor y su rango va de las 00:00 a las 23:59. 
+
+```{r}
+
+class(datos.completo$Hora.UTC)
+min(format(strptime(datos.completo$Hora.UTC, "%H:%M"), "%H:%M"))
+max(format(strptime(datos.completo$Hora.UTC, "%H:%M"), "%H:%M"))
+
+```
+
+### _Clase.de.Vuelo..todos.los.vuelos._
+
+
+La variable _Clase.de.Vuelo..todos.los.vuelos._ es de tipo factor y tiene 18 categorías.
+
+
+```{r, fig.height=7, fig.width=7}
+library(tidyverse)
+
+class(datos.completo$Clase.de.Vuelo..todos.los.vuelos.)
+length(unique(datos.completo$Clase.de.Vuelo..todos.los.vuelos.))
+datos.completo %>% ggplot(aes(x=reorder(Clase.de.Vuelo..todos.los.vuelos., Clase.de.Vuelo..todos.los.vuelos.,
+                     function(x)-length(x)), fill = Clase.de.Vuelo..todos.los.vuelos.)) +
+  geom_bar() +
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5),
+        legend.position = "none") +
+  labs(x = "Clase.de.Vuelo..todos.los.vuelos.")
+
+```
+
+### _Clasificación.Vuelo_
+
+La variable _Clasificación.Vuelo_ es de tipo factor y tiene 2 categorías: "Domestico" e "Internacional".
+
+
+```{r}
+
+class(datos.completo$Clasificación.Vuelo)
+length(unique(datos.completo$Clasificación.Vuelo))
+datos.completo %>% 
+  ggplot(aes(x=reorder(Clasificación.Vuelo, Clasificación.Vuelo,
+                     function(x)-length(x)), fill = Clasificación.Vuelo)) +
+  geom_bar() +
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5),
+        legend.position = "none") +
+  labs(x = "Clasificación.Vuelo")
+
+```
+
+
+### _Tipo.de.Movimiento_
+
+La variable _Tipo.de.Movimiento_ es de tipo factor y tiene 2 categorías: "Despegue" y "Aterrizaje".
+
+
+```{r}
+
+class(datos.completo$Tipo.de.Movimiento)
+length(unique(datos.completo$Tipo.de.Movimiento))
+datos.completo %>% 
+  ggplot(aes(x=reorder(Tipo.de.Movimiento, Tipo.de.Movimiento,
+                     function(x)-length(x)), fill = Tipo.de.Movimiento)) +
+  geom_bar() +
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5),
+        legend.position = "none") +
+  labs(x = "Tipo.de.Movimiento")
+
+```
+
+
+### _Aeropuerto_
+
+La variable _Aeropuerto_ es de tipo factor y tiene 47 categorías. Los aeropuertos con más observaciones son Morón y San Fernando.
+
+```{r}
+
+class(datos.completo$Aeropuerto)
+length(unique(datos.completo$Aeropuerto))
+datos.completo %>% 
+  ggplot(aes(x=reorder(Aeropuerto, Aeropuerto,
+                     function(x)-length(x)), fill = Aeropuerto)) +
+  geom_bar() +
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5),
+        legend.position = "none") +
+  labs(x = "Aeropuerto")
+
+```
+
+
+### _Origen...Destino_
+
+La variable _Origen...Destino_ es de tipo factor y tiene 1031 categorías. En el barplot solo se muestran aquellos aeropuertos de origen/destino que tengan más de 700 observaciones. Se puede ver que uno de los aeropuertos de origen/destino más frecuente es "SUMU" (Montevideo - Uruguay). Es decir, esta variable tiene códigos de aeropuertos internacionales.
+
+
+```{r}
+
+class(datos.completo$Origen...Destino)
+length(unique(datos.completo$Origen...Destino))
+datos.completo %>% 
+  group_by(Origen...Destino) %>% 
+  mutate(n = n()) %>% 
+  filter(n > 700) %>% 
+  ggplot(aes(x=reorder(Origen...Destino, Origen...Destino,
+                     function(x)-length(x)), fill = Origen...Destino)) +
+  geom_bar() +
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5),
+        legend.position = "none") +
+  labs(x = "Origen...Destino")
+
+```
+
+
+### _Aerolinea.Nombre_
+
+La variable _Aerolinea.Nombre_ es de tipo factor y tiene 624 categorías. En el barplot solo se muestran aquellas aerolíneas que tengan más de 500 observaciones. La aerolínea más frecuente es "0". Es posible que en el dataset se reserve esa cadena para vuelos que no sean realizados por una aerolínea, o por omisión. Es interesante notar que, salvo "AEROLINEAS ARGENTINAS SSA", las otras son muy poco frecuentes. También pueden verse categorías diferentes que probablemente se refieran a la misma aerolínea, por ejemplo "FUERZA AEREA ARGENTINA" Y "FUERZA AEREA ARGENTINA (FAA)".
+
+
+```{r}
+
+class(datos.completo$Aerolinea.Nombre)
+length(unique(datos.completo$Aerolinea.Nombre))
+datos.completo %>% 
+  group_by(Aerolinea.Nombre) %>% 
+  mutate(n = n()) %>% 
+  filter(n > 500) %>% 
+  ggplot(aes(x=reorder(Aerolinea.Nombre, Aerolinea.Nombre,
+                     function(x)-length(x)), fill = Aerolinea.Nombre)) +
+  geom_bar() +
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5),
+        legend.position = "none") +
+  labs(x = "Aerolinea.Nombre")
+
+```
+
+
+### _Aeronave_
+
+La variable _Aeronave_ es de tipo factor y tiene 609 categorías. En el barplot solo se muestran aquellas aeronaves que tengan más de 2000 observaciones. Destaca que la aeronave más frecuente es "0", es posible que en el dataset se reserve esa cadena para vuelos que no hayan registrado su aeronave.
+
+
+```{r}
+
+class(datos.completo$Aeronave)
+length(unique(datos.completo$Aeronave))
+datos.completo %>% 
+  group_by(Aeronave) %>% 
+  mutate(n = n()) %>% 
+  filter(n > 2000) %>% 
+  ggplot(aes(x=reorder(Aeronave, Aeronave,
+                     function(x)-length(x)), fill = Aeronave)) +
+  geom_bar() +
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5),
+        legend.position = "none") +
+  labs(x = "Aeronave")
+
+```
+
+
+### _Pasajeros_
+
+La variable _Pasajeros_ es de tipo int. Notese que de las 328136 observaciones, 170595 tienen una cantidad 0 de pasajeros, y esto se ve reflejado en las medidas de resumen.
+
+
+```{r}
+
+summary(datos.completo$Pasajeros)
+hist(datos.completo$Pasajeros)
+nrow(datos.completo)
+nrow(datos.completo[datos.completo$Pasajeros == 0,])
+
+datos.completo %>% 
+  ggplot(aes(x= Pasajeros)) +
+  geom_density(, color="darkblue", fill="lightblue") +
+  xlim(0,200)
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5),
+        legend.position = "none") +
+  labs(x = "Cantidad de pasajeros")
+
+```
+
+
+### _Calidad.dato_
+
+La variable _Tipo.de.Movimiento_ es de tipo factor y tiene 1 categoría: "DEFINITIVO".
+
+
+```{r}
+
+class(datos.completo$Calidad.dato)
+length(unique(datos.completo$Calidad.dato))
+datos.completo %>% 
+  ggplot(aes(x=reorder(Calidad.dato, Calidad.dato,
+                     function(x)-length(x)), fill = Calidad.dato)) +
+  geom_bar() +
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5),
+        legend.position = "none") +
+  labs(x = "Calidad.dato")
+
+```
+
+
+
+## Filtro de vuelos domésticos
+
+En gran parte del análisis será de utilidad restringir las observaciones a aquellas que sean domésticas, es decir, cuyos origen y destino sean aeropuertos nacionales.
+
+```{r}
+
+library(tidyverse)
+
+datos.dom = datos.completo %>%
+  filter(Clasificación.Vuelo == "Domestico")
+head(datos.dom)
+nrow(datos.dom)
+
+```
+
+Este filtro redujo el número de observaciones de 328136 a 293069.
+
+## Códigos de los aeropuertos
+
+Se cargara el dataset que contiene los códigos y las coordenadas de los aeropuertos argentinos.
+
+```{r}
+
+tabla.aerop = read.csv("sna_abril_2021_fixed_encoding.csv", sep = ",",encoding = "UTF-8")
+head(tabla.aerop)
+
+```
+
+¿Cuántos de los vuelos domésticos tienen su aeropuerto de origen y de destino registrado en el dataset recién cargado?
+
+
+```{r}
+
+datos.dom.ana = datos.dom %>%
+  filter(is.element(Aeropuerto, tabla.aerop$ana), is.element(Origen...Destino, tabla.aerop$ana)) 
+nrow(datos.dom.ana)
+
+```
+
+Hay 293069 - 206783 = 59428 vuelos que no tienen coincidencia. ¿A qué aeropuerto corresponden principalmente?
+
+```{r}
+
+datos.dom %>%
+  filter(!is.element(Aeropuerto, tabla.aerop$ana)) %>% 
+  group_by(Aeropuerto) %>% 
+  summarise(Count = n()) %>% 
+  arrange(desc(Count))
+
+datos.dom %>%
+  filter(!is.element(Origen...Destino, tabla.aerop$ana)) %>% 
+  group_by(Origen...Destino) %>% 
+  summarise(Count = n()) %>% 
+  arrange(desc(Count))
+
+```
+
+Para no perder la gran cantidad de vuelos asociados al aeropuerto de Morón, se añade esta entrada manualmente al dataset de los códigos de aeropuertos.
+
+```{r}
+
+tabla.aerop = tabla.aerop %>% 
+  add_row(X = 55, id = 160, cpr = "Buenos Aires", pais = "Argentina",  nam = "Morón", fna = "Aeropuerto de Morón", fuc = "", ose = "", iko = "SADM", ita = "MOR", ana = "MOR", thr = "", nom_ciudad = "Morón", y = -34.67916667, x = -58.64361111)
+
+```
+
+Luego, se vuelve a aplicar el filtro.
+
+```{r}
+
+datos.dom.ana = datos.dom %>%
+  filter(is.element(Aeropuerto, tabla.aerop$ana), is.element(Origen...Destino, tabla.aerop$ana)) 
+nrow(datos.dom.ana)
+
+codigos.aerop.ana = tabla.aerop$ana
+
+```
+
+Con la incorporación de Morón, este filtrado deja ahora 256448 observaciones.
+
+
+## Cálculo de la distancia de vuelo
+
+Para calcular la distancia, se construye un data frame que tenga tantas filas como posibles relaciones haya entre los aeropuertos de origen y de destino (producto cartesiano de los aeropuertos) y que tenga como columnas los códigos de los aeropuertos de origen y de destino y sus coordenadas.
+
+Para ello, se crean 2 data frames separados, uno para los aeropuertos de origen y otro para los de destino. En realidad, ambos data frames son iguales, salvo por el nombre de las columnas.
+
+```{r}
+
+tabla.aerop.origen = data.frame("Origen" = codigos.aerop.ana,
+                                "Longitud origen" = tabla.aerop$x,
+                                "Latitud origen" = tabla.aerop$y)
+tabla.aerop.destino = data.frame("Destino" = codigos.aerop.ana,
+                                "Longitud destino" = tabla.aerop$x,
+                                "Latitud destino" = tabla.aerop$y)
+head(tabla.aerop.origen)
+head(tabla.aerop.destino)
+
+```
+
+Una vez hecho esto, se procede a generar el producto cartesiano de ambas tablas mediante la función merge.
+
+```{r}
+
+distancias = merge(tabla.aerop.origen, tabla.aerop.destino)
+head(distancias)
+
+```
+
+Luego, para cada fila de este data frame, se aplica la función distHaversine del paquete geosphere para calcular la distancia entre los aeropuertos de origen y de destino.
+
+```{r}
+
+library(geosphere)
+
+distancias = distancias %>% 
+  mutate(Distancia.m = distHaversine(cbind(Longitud.origen, Latitud.origen), cbind(Longitud.destino, Latitud.destino))) %>% 
+  mutate(Distancia.km = Distancia.m/1000)
+head(distancias[,c("Origen", "Destino", "Distancia.km")])
+
+```
+
+Por último, se agrega al dataset una columna con la distancia entre los aeropuertos de origen y de destino para cada fila. 
+
+```{r}
+
+largo = nrow(datos.dom.ana)
+datos.dom.ana$"Distancia.km" = rep(NA, nrow(datos.dom.ana))
+for (i in 1:largo){
+  ana1 = datos.dom.ana[i,"Aeropuerto"]
+  ana2 = datos.dom.ana[i,"Origen...Destino"]
+  # Convertimos los factors en characters
+  ana1 = as.character(ana1)
+  ana2 = as.character(ana2)
+  # Buscamos sus distancias
+  distancia = distancias[which(distancias$"Origen" == ana1 & distancias$"Destino" == ana2), "Distancia.km"]
+  datos.dom.ana[i, "Distancia.km"] = distancia
+}
+head(datos.dom.ana[,c("Aeropuerto", "Origen...Destino", "Distancia.km")])
+
+```
+
+
+## Formato de la fecha y hora
+
+Como fue mencionado anteriormente, la fecha y la hora en el dataset son factor. Para simplificar el manejo de estas variables, estas son convertidas a tipo POSIXlt mediante la función strptime.
+
+```{r}
+
+datos.dom.ana = datos.dom.ana %>% 
+  mutate(Fecha.Hora = strptime(paste(Fecha, Hora.UTC), "%d/%m/%Y %H:%M") )
+
+```
+
+Mediante este tipo de dato, es posible, por ejemplo, restar fechas de manera muy simple.
+
+```{r, eval = FALSE}
+
+fecha1 = strptime("03/01/2021 00:02", "%d/%m/%Y %H:%M")
+fecha2 = strptime("06/08/2021 10:56", "%d/%m/%Y %H:%M")
+x = fecha2-fecha1
+print(x) # diferencia en dias
+as.numeric(x, units = "hours") # diferencia en horas 
+
+remove(fecha1, fecha2, x)
+
+```
+
+
+## Cálculo de la velocidad de vuelo
+
+Para calcular la velocidad de vuelo, es necesario "matchear" cada despegue con su correspondiente aterrizaje. Surge entonces la pregunta de cuáles son las condiciones que tienen que cumplir un par de vuelos para considerarse un "match". En este caso se tomarán las siguientes condiciones:
+* La duración del vuelo debe ser al menos 5 horas.
+* Los vuelos deben realizarse con la misma aerolínea y la misma aeronave.
+* El destino del vuelo despegue corresponde al origen del vuelo aterrizaje, y viceversa.
+
+En primer lugar, se agregan a los filtros que la aerolínea y la aeronave no tengan valor "0".
+
+```{r}
+
+datos.dom.ana.aero = datos.dom.ana %>% 
+  filter(Aerolinea.Nombre != 0, Aeronave != 0)
+nrow(datos.dom.ana.aero)
+
+```
+
+Al aplicar este nuevo filtro, quedan 114260 observaciones.
+
+La primer aproximación para el script de matcheo es mediante dos bucles for anidados. El primer for itera sobre los vuelos de despegue, mientras que el segundo, sobre los aterrizajes.
+
+```{r, eval = FALSE}
+
+largo = 1000
+datos.dom.ana.aero$"Velocidad.kmh" = rep(NA, nrow(datos.dom.ana.aero))
+for (i in 1:largo) {
+  if (datos.dom.ana.aero[i,"Tipo.de.Movimiento"] == "Despegue") {
+    for (j in i+1:nrow(datos.dom.ana.aero)) {
+      
+      if (as.numeric(datos.dom.ana.aero[j,"Fecha.Hora"] - datos.dom.ana.aero[i,"Fecha.Hora"], units = "hours") >= 5)
+        break
+      
+      else if (datos.dom.ana.aero[j,"Tipo.de.Movimiento"] == "Aterrizaje" &&
+          datos.dom.ana.aero[j,"Aerolinea.Nombre"] == datos.dom.ana.aero[i,"Aerolinea.Nombre"] &&     
+          datos.dom.ana.aero[j,"Aeronave"] == datos.dom.ana.aero[i,"Aeronave"] && 
+          datos.dom.ana.aero[j,"Aeropuerto"] == datos.dom.ana.aero[i,"Origen...Destino"] &&
+          datos.dom.ana.aero[j,"Origen...Destino"] == datos.dom.ana.aero[i,"Aeropuerto"]) {
+        duracion = as.numeric(datos.dom.ana.aero[j,"Fecha.Hora"] - datos.dom.ana.aero[i,"Fecha.Hora"], units = "hours")
+        distancia = datos.dom.ana.aero[j,"Distancia.km"]
+        velocidad = distancia/duracion
+        datos.dom.ana.aero[i,"Velocidad.kmh"] = velocidad
+        datos.dom.ana.aero[j,"Velocidad.kmh"] = velocidad
+        break
+      }
+    }
+  }
+}
+
+
+```
+
+Se puede notar que la ejecución de este script consume mucho tiempo. Por este motivo, se utilizará una versión alternativa, que aprovecha las funciones de R para optimizar el matcheo.
+
+```{r}
+
+# Dividimos en despegues y aterrizajes
+datos.dom.ana.aero.desp = datos.dom.ana.aero[datos.dom.ana.aero$Tipo.de.Movimiento == 'Despegue',]
+datos.dom.ana.aero.ater = datos.dom.ana.aero[datos.dom.ana.aero$Tipo.de.Movimiento == 'Aterrizaje',]
+
+# hacemos un match
+matched = left_join(datos.dom.ana.aero.desp, 
+                    datos.dom.ana.aero.ater, 
+                    by= c("Aeropuerto" = "Origen...Destino", 
+                          "Origen...Destino" = "Aeropuerto", 
+                          "Aerolinea.Nombre" = "Aerolinea.Nombre", 
+                          "Aeronave" = "Aeronave")) %>% 
+  mutate(tdif = as.numeric(Fecha.Hora.y - Fecha.Hora.x, units='hours')) %>%
+  group_by(Aeropuerto, Fecha.Hora.x, Aeronave) %>% 
+  filter(tdif > 0) %>%
+  filter(tdif < 5) %>% 
+  filter(tdif == min(tdif)) %>% 
+  mutate(Velocidad.kmh = Distancia.km.x / tdif) %>% 
+  ungroup()
+
+head(matched)
+nrow(matched)
+
+```
+
+Este script se ejecuta en poco tiempo, logrando como resultado matchear 52326 vuelos.
+
+
+
+
+# Parte 2
+
+En esta parte se realizará un análisis en profundidad del dataset. 
+Para ello, se plantean diferentes preguntas que relacionen 2 o más variables.
+
+## Confianza en el matcheo de los vuelos
+
+Antes de trabajar con la variable _tdif_, que mide la duración de dos vuelos matcheados, surge la pregunta de cuán confiable son los valores que asume esta variable, o en otras palabras, si los aterrizajes y los despegues fueron matcheados de manera correcta por nuestro script.
+
+En primer lugar véase un caso puntual: los vuelos desde Aeroparque hacia Bariloche cuya duración sea menor a 1 hora. Es evidente que ningún vuelo bien matcheado podría tener una duración tan corta.
+
+```{r}
+
+nrow(
+  matched %>% 
+    filter(Aeropuerto == "AER", Origen...Destino == "BAR", tdif < 1)
+  )
+
+```
+
+Solo para este caso particular, hay 34 matcheos que son erróneos. 
+Surge entonces la pregunta de si, agregar la condición de que dos vuelos tengan mismo número de pasajeros para poder ser matcheados, soluciona estos inconvenientes.
+
+
+```{r}
+
+nrow(
+  matched %>% 
+    filter(Aeropuerto == "AER", Origen...Destino == "BAR", tdif < 1, Pasajeros.x == Pasajeros.y)
+  )
+
+```
+
+Aún así, hay 5 vuelos matcheados erróneamente. A pesar de estos casos individuales, que pueden deberse a errores en la carga de los datos, resulta interesante analizar el comportamiento promedio. 
+
+Calcúlese entonces la mediana y la distancia intercuartil de _tdif_, agrupando a las observaciones por aeropuerto de origen y de destino.
+
+
+```{r}
+
+tabla.orig.dest = matched %>% 
+  group_by(Aeropuerto, Origen...Destino) %>%  
+  summarize(m=median(tdif), n=n(), iqr = IQR(tdif), .groups = "keep") %>%
+  arrange(desc(n))
+
+head(tabla.orig.dest)
+nrow(tabla.orig.dest)
+
+```
+
+Esta tabla posee 623 filas. Véase cómo se distribuye el número de observaciones en estos grupos.
+
+```{r}
+
+hist(tabla.orig.dest$n)
+
+```
+
+La mayoría de las entradas agrupan muy pocas observaciones, lo que hace que la mediana y la distancia intercuartil no sean estadísticamente significativas para esos casos. Por este motivo, solo se considerarán los grupos que tengan más de 300 observaciones.
+
+```{r}
+
+tabla.orig.dest = tabla.orig.dest %>% 
+  filter(n > 300)
+
+head(tabla.orig.dest)
+nrow(tabla.orig.dest)
+
+```
+
+
+Para poder visualizar mejor estos datos, solo se seleccionarán las observaciones que tengan como aeropuerto de origen a Aeroparque y, para cada aeropuerto de destino, se analizará la distribución de _tdif_ mediante un histograma y un boxplot.
+
+
+```{r, echo=TRUE, fig.height=20, fig.width=7}
+
+matched.AER = matched %>% 
+  filter(Aeropuerto == 'AER') %>% 
+  group_by(Origen...Destino) %>% 
+  mutate(count=n()) %>%
+  filter(count>300) %>%
+  ungroup()
+
+
+matched.AER %>% 
+  ggplot(aes(x = tdif)) +
+  geom_histogram(fill = "white", colour = "black") +
+  geom_boxplot(width=100, color='blue', lwd=0.5) +
+  facet_grid(Origen...Destino ~ .)
+
+```
+
+Nótese que la moda se encuentra en valores esperados según la distancia entre los aeropuertos considerados. También es interesante notar que, si bien hay variabilidad, la distancia intercuartil es relativamente chica, esto quiere decir que el 50% de la distribución está muy concentrada alrededor de la mediana. Por otro lado, es evidente la presencia de outliers. 
+
+En base a estos resultados, se puede concluir que el comportamiento promedio de la variable _tdif_ es confiable, sin embargo su comportamiento individual puede conllevar a conclusiones equívocas debido a la presencia de outliers.
+
+
+
+## Geografía de los vuelos
+
+Análisis de la distribución de los vuelos en base a su geografía.
+
+Para ello se filtran del dataset los vuelos que son domésticos, con código de aeropuerto de origen y de destino conocido, y que correspondan a un despegue.
+
+```{r}
+
+datos.dom.ana.desp = datos.dom.ana %>% 
+  filter(Tipo.de.Movimiento == "Despegue")
+nrow(datos.dom.ana.desp)
+
+```
+
+Este dataset tiene 129248 observaciones.
+
+### Grafo de aeropuertos y rutas aéreas
+
+En este punto se utilizan las herramientas provistas por los grafos para identificar la estructura de red que forman las rutas aéreas en Argentina.
+
+Carga de los siguientes paquetes requeridos.
+
+```{r}
+
+library(igraph)
+library(tidygraph)
+library(ggraph)
+library(maps)
+
+```
+
+En primer lugar, se utiliza la librería maps para obtener el contorno de la Argentina.
+
+```{r, fig.height=10, fig.width=7}
+
+argentina = map_data("world", "argentina") %>% 
+  select(lon = long, lat, group, id = subregion)
+
+argentina %>% 
+  ggplot(aes(lon, lat)) +
+  geom_polygon(colour="black", fill=NA)
+
+```
+
+El resultado no es el esperado, debido a las islas. Para solucionarlo,se grafican Argentina continental e insular por separado.
+
+```{r, fig.height=10, fig.width=7}
+
+unique(argentina$id)
+argentina1 = argentina %>% 
+  filter(is.element(id, "Tierra del Fuego"))
+argentina2 = argentina %>% 
+  filter(is.na(id)) # Argentina continental
+
+ggplot() +
+  geom_polygon(data = argentina1, aes(x = lon, y = lat), colour="black", fill=NA) +
+  geom_polygon(data = argentina2, aes(x = lon, y = lat), colour="black", fill=NA)
+
+```
+
+Se crea al grafo que tiene como vértices a los aeropuertos, como aristas a los aeropuertos que tienen una ruta directa, y el peso de cada arista es el número de vuelos entre esos aeropuertos.
+
+```{r}
+
+arcos = datos.dom.ana.desp[c("Aeropuerto", "Origen...Destino")] %>% 
+  group_by(Aeropuerto, Origen...Destino) %>% 
+  summarize(Peso = n(), .groups = "keep")
+
+g = arcos %>%
+  graph_from_data_frame(directed = T) %>% # Esta función toma el listado y lo convierte en un objeto grafo
+  as_tbl_graph() # Este lo mueve a formato "tidy"
+
+g
+
+```
+
+
+Construcción de una tabla con las coordenadas de cada vértice.
+
+```{r}
+
+vertices = g %>% 
+  activate(nodes) %>% 
+  as.data.frame()
+
+vertices.coordenadas = left_join(vertices, tabla.aerop, by = c("name" = "ana")) %>% 
+  select(name, x, y)
+head(vertices.coordenadas)
+
+```
+
+Se plotea el grafo usando las coordenadas calculadas para ubicar manualmente los vértices.
+
+```{r, fig.height=10, fig.width=7}
+
+g %>% 
+  ggraph(layout = "manual", circular = F, x = vertices.coordenadas$x, y = vertices.coordenadas$y) +
+  geom_edge_link(mapping=aes(alpha=1/Peso), colour="blue") + 
+  geom_node_point() +
+  geom_polygon(data = argentina1, aes(x = lon, y = lat), colour="black", fill=NA) +
+  geom_polygon(data = argentina2, aes(x = lon, y = lat), colour="black", fill=NA) +
+  geom_node_label(aes(label = vertices$name), repel = T, label.size = 0.1, label.padding = 0.1, max.overlaps = 15)
+
+```
+
+Este grafo resulta difícil de interpretar debido a la gran cantidad de aristas. Por lo tanto se prueba solo graficando las aristas con mayor peso, por ejemplo las que correspondan a rutas con más de 100 vuelos.
+
+```{r, fig.height=10, fig.width=7}
+
+g %>% 
+  activate(edges) %>% 
+  filter(Peso > 100) %>%
+  ggraph(layout = "manual", circular = F, x = vertices.coordenadas$x, y = vertices.coordenadas$y) +
+  geom_edge_link(mapping=aes(alpha=1/Peso), colour="blue") + 
+  geom_node_point() +
+  geom_polygon(data = argentina1, aes(x = lon, y = lat), colour="black", fill=NA) +
+  geom_polygon(data = argentina2, aes(x = lon, y = lat), colour="black", fill=NA) +
+  geom_node_label(aes(label = vertices$name), repel = T, label.size = 0.1, label.padding = 0.1, max.overlaps = 15)
+
+```
+
+
+Es evidente que la mayor parte de los vuelos tienen como origen o destino a un aeropuerto del Gran Buenos Aires. A su vez, hay muy poco tráfico aéreo entre aerpuertos del interior. Entre estos último se puede mencionar por ejemplo a Calafate - Ushuaia, Córdoba - Mendoza, Córdoba - Bariloche, Rosario - Bariloche, entre otros.
+
+Eliminación de las variables que ya no tienen uso.
+
+```{r}
+
+remove(argentina, argentina1, argentina2, arcos, vertices, g, vertices.coordenadas)
+
+```
+
+
+## Volumen de vuelos en las principales rutas aéreas argentinas
+
+
+Para poder comparar el volumen de vuelos en distintas rutas aéreas de Argentina se almacena en viajes la información correspondiente a las columnas con información sobre el aeropuerto de llegada y salida filtrando a aquellos con escaso volumen de vuelos.
+```{r}
+viajes = datos.dom.ana.aero.desp %>%
+  filter(Origen...Destino== "EZE" | Origen...Destino== "BAR" |Origen...Destino== "AER"| Origen...Destino== "NEU" |Origen...Destino=="DOZ" |Origen...Destino == "CBA" | Origen...Destino== "FDO") %>%
+  filter(Aeropuerto == "EZE" | Aeropuerto == "BAR" |Aeropuerto == "AER"| Aeropuerto == "NEU" |Aeropuerto =="DOZ" |Aeropuerto == "CBA" | Aeropuerto == "FDO") %>%
+  group_by(Aeropuerto)
+
+viajes = viajes[,6:7]
+
+
+```
+
+Se seleccionan los tipos de vuelo, se separan y selecciona y filtra a los tres que poseen mayor cantidad de vuelos, siendo estos los vuelos regulares, los privados y los de escuela. Con estos datasets de vuelos divididos por tipo se arma un barplot en donde se muestre los aeropuertos en donde estos operan,ademas de un barplot en donde se representan al total de vuelos de los principales aeropuertos y se divide en cada barra con colores el porcentaje de vuelos en dicho aeropuerto que pertnecen a cada una de los tipos.
+
+```{r}
+vuelos = datos.dom.ana %>%
+  mutate(clase = Clase.de.Vuelo..todos.los.vuelos.)
+
+vuelosRegulares = filter(vuelos, clase == "Regular")   #Además de filtra por tipo elimino a los aeropuertos con menor cantidad de obs 
+vuelosRegulares = vuelosRegulares %>%
+  add_count(Aeropuerto)%>%
+  filter(n>3000) %>%
+  distinct(Aeropuerto,.keep_all = TRUE)
+
+
+vuelosPrivados = filter(vuelos, clase == "Vuelo Privado con Matrícula Nacional")
+vuelosPrivados = vuelosPrivados %>%
+  group_by(Origen...Destino)%>%
+  add_count(Aeropuerto)%>%
+  filter(n>450) %>%
+  distinct(Aeropuerto,.keep_all = TRUE)
+
+
+vuelosEscuela = filter(vuelos, clase == "Vuelo Escuela" | clase == "Vuelo de Adiestramiento ") #los considero equivalentes
+vuelosEscuela = vuelosEscuela %>%
+  add_count(Aeropuerto)%>%
+  filter(n>400) %>%
+  distinct(Aeropuerto,.keep_all = TRUE)
+
+
+vuelos = vuelos %>%
+  group_by(Aeropuerto)%>%
+  mutate(count=n()) %>%
+  filter(count>4500) %>%
+  filter(clase == "Regular" |clase == "Vuelo Escuela"|clase == "Vuelo de adiestramiento"|clase == "Vuelo Privado con Matrícula Nacional")
+
+
+vuelos = vuelos %>%
+  group_by(Origen...Destino)%>%
+  mutate(count=n()) %>%
+  filter(count>1000) 
+
+
+ggplot(vuelos, aes(fill=clase, y=count, x=Aeropuerto)) +   #hago un barplot de los tipos de vuelo en los principales aeropuertos
+    geom_bar(position="fill", stat="identity") + 
+    ylab("Vuelos")
+```
+
+
+Ahora en este barplot se puede observar claramenete los tipos de vuelo que operan en los principales aeropuertos,componiéndose el tráfico de la mayor parte de los aeropuertos por vuelos regulares. Las exepciones a esto son el aeropuerto de Morón (el cual posee una cantidad destacable de vuelos escuela), el aeropuerto de San Rafael (el cual también posee una gran proporción de vuelos escuela pero también posee vuelos regulares,de trabajo aéreo y privados), el aeropuerto de Neuquén (el cual parece poseer una cantidad similar de vuelos escuela y regulares,ademas de incluir vuelos de adiestramiento los cuales fueron tomados como vuelos de aprendizaje) y el aeropuerto de San Fernando (el cual posee un tráfico aereo compuesto principalmente de vuelos privados nacionales).
+
+```{r}
+library(ggpubr)
+vuelosTotales = ggplot(vuelos, aes(fill=clase, y=count, x=Aeropuerto)) +   
+                   geom_bar(position="stack", stat="identity") +             
+                   ylab("Vuelos")
+vuelosTotales + scale_y_continuous(labels = scales::number)
+
+escuela = ggplot(vuelosEscuela, aes(x=Aeropuerto, y = n)) +   
+    geom_bar(position="stack", stat="identity",fill = "turquoise4")+
+    theme_classic() +
+    ylab("Vuelos escuela")
+
+
+privados = ggplot(vuelosPrivados, aes(y=n, x=Aeropuerto)) +   
+    geom_bar(position="stack", stat="identity",fill = "turquoise3")+
+    theme_classic()+
+    ylab("Vuelos privados")
+
+
+regulares = ggplot(vuelosRegulares, aes(y=n, x=Aeropuerto)) +   
+    geom_bar(position="stack", stat="identity",fill = "turquoise2") +
+    theme_classic()+
+    ylab("Vuelos regulares")
+
+ggarrange(escuela, privados,regulares,
+          ncol = 2, nrow = 2)
+
+
+```
+
+
+De los demás barplots se puede deducir que para los vuelos escuela el aeropuerto de Morón y San Rafael son los que acaparan un mayor volumen de vuelos (teniendo el aeropuerto de Morón una cantidad de vuelos que supera ampliamente a la del resto de los aeropuertos), para los vuelos privados el que mayor volumen posee es el de San Fernando(y ocurre lo mismo que con los vuelos escuela, este acapara una cantidad muy superior de vuelos en comparación a todos los otros aeropuertos) y por último para los vuelos regulares los aeropuertos con mayor cantidad de vuelos son los de aeroparque, Ezeiza y Bariloche.
+
+
+## Relación entre el tipo de aeronave con la clase de vuelo
+
+Una pregunta de interés es si es posible identificar la clase del vuelo a partir del tipo de aeronave.
+
+Para ello, se trabajará con todas las observaciones que tengan cargada la aeronave.
+
+```{r}
+
+datos.aero = datos.completo %>% 
+  filter(Aeronave != 0)
+
+length(unique(datos.aero$Aeronave))
+
+```
+
+
+Dado que hay muchos tipos de aeronaves (608), se selecciona únicamente a las 6 aeronaves más frecuentes.
+
+```{r}
+
+aeronaves.freq = datos.aero %>% 
+  group_by(Aeronave) %>% 
+  summarize(count = n()) %>%
+  arrange(desc(count)) %>% 
+  slice(1:6)
+
+aeronaves.freq = aeronaves.freq$Aeronave
+aeronaves.freq
+
+```
+
+Para cada una de ellas, se grafica un barplot de la clase de los vuelos que realizan.
+
+```{r, echo=TRUE, fig.height=10, fig.width=7}
+
+datos.aero %>% 
+  filter(is.element(Aeronave, aeronaves.freq)) %>% 
+  ggplot(aes(x = Clase.de.Vuelo..todos.los.vuelos., fill = Clase.de.Vuelo..todos.los.vuelos.)) + 
+  geom_bar() +
+  facet_grid(Aeronave ~ .) +
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5), 
+        legend.position = "none") +
+  labs(x = "")
+
+```
+
+Se puede ver que las aeronaves AIB-A320-232, BO-737-800, y EMB-ERJ190100IGW son utilizadas principalmente para vuelos regulares. En cambio, las aeronaves CE-152, CE-150-L, y CE-150-M, para vuelos escuela.
+
+Eliminación de las variables que ya no tienen uso.
+
+```{r}
+remove(datos.aero, aeronaves.freq)
+```
+
+
+## Distribución del tiempo de vuelo
+
+Análisis de la distribución del tiempo de vuelo en relación a diferentes variables.
+
+Se utilizará el dataset _matched_ dado que es necesario conocer el tiempo de vuelo.
+
+### Entre dos aeropuertos
+
+En este punto se busca dar respuesta a la variabilidad del tiempo de vuelo entre dos aeropuertos.
+En primer lugar se selecciona un aeropuerto que tenga un tráfico aéreo considerable con Aeroparque.
+
+```{r}
+
+tabla.AER.dest = tabla.orig.dest %>% 
+  filter(Aeropuerto == "AER")
+
+head(tabla.AER.dest)
+tabla.AER.dest$Origen...Destino[1]
+
+```
+
+Entonces se seleccionan los vuelos desde Aeroparque hacia Bariloche.
+
+
+```{r}
+
+matched.AER.BAR = matched.AER %>%
+  filter(Origen...Destino == "BAR")
+
+```
+
+
+Una de las causantes de la variabilidad de la duración puede ser el uso de distintos tipos de aeronaves.
+Para analizar esto, se averigua cuál es el tipo de aeronave más frecuente para esta ruta.
+
+```{r}
+
+matched.AER.BAR %>% 
+  group_by(Aeronave) %>% 
+  summarise(count = n()) %>% 
+  arrange(desc(count)) %>%
+  slice(1)
+
+```
+
+El AIB-A320-232 es la aeronave más frecuente para la ruta Aeroparque - Bariloche.
+Se filtran las observaciones que coincidan con esta aeronave.
+
+```{r}
+
+matched.AER.BAR.AIB = matched.AER.BAR %>% 
+  filter(Aeronave == "AIB-A320-232")
+
+```
+
+Ahora se busca la comparación de los histogramas de la duración para ambos casos, es decir, al filtrar o no por este tipo de aeronave.
+
+```{r}
+
+par(mfrow=c(1,2))
+hist(matched.AER.BAR$tdif, breaks = 20, main = "Todas las aeronaves", xlab = "tdif")
+hist(matched.AER.BAR.AIB$tdif, breaks = 20, main = "AIB-A320-232", xlab = "tdif")
+
+```
+
+Sin considerar el número de observaciones, ambas distribuciones resultan muy parecidas.
+Es decir, aún considerando los vuelos desde Aeroparque a Bariloche realizados con un AIB-A320-232, se observa variabilidad en la duración.
+
+Otra causa de esta variabilidad puede ser cambios en las condiciones climáticas, por ejemplo entre el verano y el invierno. Para profundizar esta hipótesis, se realiza un análisis de la distribución mensual de la duración para los vuelos desde Aeroparque a Bariloche en un AIB-A320-232.
+
+Antes que nada, se analiza cuántas observaciones hay en cada mes.
+
+```{r}
+
+matched.AER.BAR.AIB %>% 
+  mutate(Mes = as.factor(Fecha.Hora.x$mon+1)) %>% 
+  group_by(Mes) %>%
+  summarise(Count = n())
+
+```
+
+De enero a febrero de 2021 Aeroparque estuvo cerrado, por ese motivo no hay observaciones en dichos meses. A su vez, el dataset solo tiene registros hasta el mes de Septiembre. Así mismo, en junio hay una cantidad muy baja de vuelos debido al rebrote de casos de covid. De todas formas, en los demás meses el número de vuelos es considerable.
+
+Obsérvese entonces la distribución en cada uno de estos meses.
+
+```{r}
+
+matched.AER.BAR.AIB %>% 
+  mutate(Mes = as.factor(Fecha.Hora.x$mon+1)) %>% 
+  ggplot(aes(x = Mes, y = tdif)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_hline(yintercept = median(matched.AER.BAR.AIB$tdif), colour = "red") +
+  ylim(c(1.5,2.5))
+
+```
+
+En este caso, si es posible afirmar que la duración de los vuelos dependería del mes, siendo mayor para los meses de invierno.
+
+### Según distancia
+
+En esta parte se intentará responder a la pregunta de si el tiempo de vuelo es más variable en largas distancias.
+
+Para ello, se estudiará la correlación entre la distancia y la distancia intercuartil de la duración agrupando las observaciones por aeropuerto de origen y de destino con al menos 300 vuelos registrados. 
+
+
+```{r}
+
+tabla.orig.dest = matched %>% 
+  group_by(Aeropuerto, Origen...Destino) %>%  
+  summarize(m=median(tdif), n=n(), iqr = IQR(tdif), Dist = min(Distancia.km.x), .groups = "keep") %>% 
+  filter(n > 300)
+
+tabla.orig.dest %>% 
+  ggplot(aes(x = Dist, y = iqr)) + 
+  geom_point() +
+  geom_smooth(method = "lm") +
+  labs(x = "Distancia (km)", y = "IQR", title = "tdif")
+
+```
+
+Nótese la existencia de un punto extremo que distorsiona la gráfica. Este punto tiene vuelos con distancia 0, es decir, que parten y arriban al mismo aeropuerto. Claramente en estos vuelos la duración no depende de la distancia. Entonces, elimínese todas las observaciones con distancia 0 y repítase el plot.
+
+```{r}
+
+tabla.orig.dest %>% 
+  filter(Aeropuerto != Origen...Destino) %>% 
+  ggplot(aes(x = Dist, y = iqr)) + 
+  geom_point() +
+  geom_smooth(method = "lm") +
+  labs(x = "Distancia (km)", y = "IQR", title = "tdif")
+
+
+```
+
+Efectivamente, se observa una correlación positiva entre la distancia de vuelo y la distancia intercuartil de la duración.
+
+
+
+
+### A la ida y a la vuelta
+
+En este punto se responderá a la pregunta de si el tiempo de vuelo es simétrico, es decir, es el mismo para la ida que para la vuelta.
+
+Para este análisis son considerados los vuelos de Aeroparque a Bariloche realizados en el AIB-A320-232, y se crea un boxplot de la duración para los vuelos de ida y otro para los de vuelta.
+
+```{r}
+
+matched.BAR.AER.AIB = matched %>%
+  filter(Aeropuerto == "BAR", 
+         Origen...Destino == "AER", 
+         Aeronave == "AIB-A320-232")
+
+par(mfrow=c(1,2))
+boxplot(matched.AER.BAR.AIB$tdif, outline = F, ylim = c(1.5, 2.4), ylab = "tdif", xlab = "AER-BAR")
+boxplot(matched.BAR.AER.AIB$tdif, outline = F, ylim = c(1.5, 2.4), xlab = "BAR-AER")
+
+median(matched.AER.BAR.AIB$tdif) - median(matched.BAR.AER.AIB$tdif)
+
+```
+
+Se puede ver que las medianas diferen en 0.25 horas. Este fenómeno se debe a las fuertes corrientes de aire que circulan de oeste a este a gran altura, denominadas _corrientes en chorro_ (o _jet streams_, https://en.wikipedia.org/wiki/Jet_stream).
+
+
+Antes de continuar,se limpian las variables que ya no tienen uso.
+
+```{r}
+
+remove(tabla.orig.dest, matched.AER, matched.AER.BAR, matched.AER.BAR.AIB, matched.BAR.AER.AIB, tabla.AER.dest)
+
+```
+
+## Cantidad de pasajeros transportados a lo largo del tiempo
+
+Para analizar esto primero se toma el volumen total de pasajeros que viajan en el país resumiendo todas las observaciones a la suma de pasajeros que fueron transportados cada día. Luego de esto se grafica con un diagrama de dispersión en donde se agrega una linea horizontal fijada en el valor de la media de los datos.
+
+
+```{r}
+
+fechas = categories <- unique(matched$Fecha.y)
+
+ordenadoFecha = matched %>%
+  filter(Pasajeros.x == Pasajeros.y)%>%
+  mutate(Fecha.x = as.Date(Fecha.x,"%d/%m/%y"))  
+group_sum = aggregate(ordenadoFecha$Pasajeros.x, list(ordenadoFecha$Fecha.x), sum)
+meanl = mean(group_sum$x)
+
+
+ggplot(group_sum, aes(x = Group.1, y = x)) +
+  geom_point(
+        color ="#69b3a2",
+        fill="#69b3a2",
+        shape=21,
+        alpha=0.5,
+        size=2,
+        stroke = 2) +
+        ylim(0,9000) +
+        ylab("Pasajeros") +
+        xlab("Fecha") +
+        geom_hline(yintercept = meanl, color = "maroon3") +
+        theme_classic()
+    head(group_sum)
+
+```
+
+Presentada de esta forma la información se puede observar que la cantidad de pasajeros transportados decae profundamente desde comiezo del mes de abril hasta fines de junio, lo cual coincide con el aumento de casos de covid-19 en el país. Además es notable como luego de esta depresión la cantidad de vuelos desde el mes de agosto hasta el mes de octubre aumenta de tal forma que la cantidad de gente que viajó por día es incluso mayor que durante enero-febrero los cuales son los meses comunmente elegidos para vacacionar 
+Luego, se modifica el formato de tiempo del dataset de datos sobre despegues para quedarnos solo con el mes, se calcula la media de pasajeros por día y esta se suma para obtener el valor aproximado de gente que viajo en avion en determinado mes. 
+
+
+```{r}
+
+suppressPackageStartupMessages(library(lubridate))
+
+porMes = datos.dom.ana.aero.desp$Fecha.Hora$mon+1
+pormes = aggregate(datos.dom.ana.aero.desp$Pasajeros, list(as.Date(datos.dom.ana.aero.desp$Fecha.Hora)),sum)
+pormes$Group.1 = format(pormes$Group.1, "%m")
+pormes$Group.1 = as.integer(pormes$Group.1)
+
+pormes.sum = aggregate(pormes$x, list(pormes$Group.1), sum)
+
+
+plotPorMes = ggplot( pormes.sum,aes(x=Group.1, y=x)) +
+                geom_line( color="black") +
+                geom_point(shape=21, color="black", fill="#69b3a2", size=5) +
+                ggtitle("Media de pasajeros por mes") +
+                ylab("Pasajeros") +
+                xlab("mes")
+ 
+suppressPackageStartupMessages(library(scales))
+plotPorMes + scale_y_continuous(labels = scales::number)
+max(pormes.sum$x)
+```  
+
+En este gráfico se puede ver de nuevo como coincide la cantidad de gente que viajó con las restricciones al turismo,movilidad y aumento de casos de covid. Es interesante notar también que en el mes que más personas viajaron la cantidad de pasajeros sumados de todos los vuelos comerciales da como dato que la catidad de pasajeros transportados equivale al 0,997% de la población argentina según las proyecciones más recientes del INDEC para el 2021.
+
+
+## Análisis de fines de semanas largos
+
+ Para poder analizar esta relación primero se filtran los datos de todo vuelo que no sea comercial para asegurarse de que los pasajeros transportados sean por turismo o cuestiones similares. Luego se agrupan los datos de pasajeros relacionando cada día con la suma de pasajeros transportados y se dividen en datasets que tienen solo los dias pertenecientes al inicio y fin del finde largo, que es donde parece haber mayor volumen de gente viajando.
+```{r}
+
+matched.Pasajeros = matched %>%
+  filter(Pasajeros.x == Pasajeros.y)
+
+vuelosRegulares = matched.Pasajeros %>% 
+  filter(Clase.de.Vuelo..todos.los.vuelos..x == 'Regular')    #me quedo solo con vuelos comerciales
+
+
+group_sum_regular = aggregate(vuelosRegulares$Pasajeros.x, list(vuelosRegulares$Fecha.x), sum)
+
+
+
+#Considero solo al primer y ult día del finde largo
+
+findeLargoAcotado = group_sum_regular %>% 
+  filter(Group.1 == "13/02/2021" | Group.1  =="16/02/2021"|Group.1 == "01/04/2021" | Group.1  =="04/04/2021" | Group.1 == "22/05/2021" |  Group.1  =="25/05/2021"| Group.1 == "19/06/2021" | Group.1 == "21/06/2021" | Group.1  =="09/07/2021" | Group.1  =="11/07/2021" |Group.1 == "14/08/2021" |  Group.1  =="16/08/2021" )
+
+findeLargoSinCuarentena = group_sum_regular %>% 
+  filter(Group.1 == "13/02/2021" | Group.1  =="16/02/2021"|Group.1 == "01/04/2021" | Group.1  =="04/04/2021" | Group.1 == "19/06/2021" | Group.1 == "21/06/2021" | Group.1  =="09/07/2021" | Group.1  =="11/07/2021" |Group.1 == "14/08/2021" |  Group.1  =="16/08/2021" )
+
+media = c(mean(group_sum_regular$x),mean(findeLargoAcotado$x),mean(findeLargoSinCuarentena$x))
+desviacionStandar = c(sd(group_sum_regular$x),sd(findeLargoAcotado$x),sd(findeLargoSinCuarentena$x))
+IQR = c(IQR(group_sum_regular$x),IQR(findeLargoAcotado$x),IQR(findeLargoSinCuarentena$x))
+fechas =c("Vuelos de todo el año","Fines de semana largos","Fin de semana largos s/ cuarentena")
+tabla = data.frame(fechas,desviacionStandar,media,IQR)
+
+```
+Se arma una tabla con las medidas resumen de los datos de pasajeros transportados durante todo el año, en fines de semana largos y en estos filtrados para excluir los feriados de mayo, considerando que durante este hubo restricciones estrictas a la circulación.
+
+
+```{R}
+
+x = c("", "Desviación estandar","Media", "IQR")
+colnames(tabla) = x
+ggtexttable(tabla, rows = NULL,
+           theme = ttheme(
+             colnames.style = colnames_style(color = "white", fill = "#8cc257"),
+             tbody.style = tbody_style(color = "black", fill = c("#e8f3de", "#d3e8bb"))
+           )
+)
+
+```
+
+
+Se puede observar que la media de pasajeros transportados en fines de semana largos es mayor que para los datos correspondientes a todo el año aunque al incluir los datos de los feriados de mayo la desviacion estandar es mayor que la anual. Ademas la media de los fines de semana filtados si es algo mayor que la de los vuelos totales ya que aunque sin filtrar hubiera diferencia esta era menor y el valor de la desviación estandar y la distancia intercuartil baja.
+
+
+
+Ahora se seleccionan solo los datos correspondientes al mes de octubre, elegido arbitrariamente para observar cómo el fin de semana largo modifica la cantidad de pasajeros de una forma clara y se hace un gráfico para observar este fenómeno. Se debe considerar que el fin de semana largo acapara los dias sabado-domingo-lunes de la semana y que por esto a pesar de que no sea día feriado es posible que la cantidad de pasajeros en el día viernes previo tambien sea mayor.
+
+
+```{r}
+
+pasajerosAgosto = group_sum_regular %>%
+  mutate(Group.1 = as.Date(Group.1,"%d/%m/%y"))  %>%
+   select(Group.1,x) %>%
+   filter(between(Group.1,as.Date("01/08/2021", "%d/%m/%y"),as.Date("31/08/2021", "%d/%m/%y")))
+
+
+pasajerosAgosto = aggregate(pasajerosAgosto$x, list(pasajerosAgosto$Group.1), sum)
+
+highlight = pasajerosAgosto[14:16,]
+
+
+clasDias = rep(0, 31)
+replace(clasDias, clasDias==0, "")
+clasDias[14] = "Fin de semana largo"
+clasDias[15] = "Fin de semana largo"
+clasDias[16] = "Fin de semana largo"
+pasajerosAgosto$clase = clasDias
+
+pasajerosAgosto %>%
+  ggplot(aes(x = Group.1,y = x)) +
+    geom_bar(position="stack", stat="identity",mapping = aes(x = Group.1, y = x, fill = clase))+
+    ggtitle("Pasajeros por día de agosto") +
+    ylab("Pasajeros") +
+    xlab("Fecha")
+
+```
+
+Se observa que el volumen de gente de viaje aumenta en los días que inicia y termina el fin de semana largo, además de que ocurre como fue señalado anteriormente que el viernes previo tambien aumenta este valor. Vale destacar que los días con mayor cantidad de pasajeros son la inicio y fin del fin de semana largo ya que al ser probablemente viajes por turismo lo que desea la gente es aprovechar todo el fin de semana.
+
