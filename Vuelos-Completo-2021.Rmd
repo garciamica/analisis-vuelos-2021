@@ -282,7 +282,7 @@ nrow(datos.dom.ana)
 
 ```
 
-Hay 293069 - 206783 = 59428 vuelos que no tienen coincidencia. ¿A qué aeropuerto corresponden principalmente?
+Hay 293069 - 206783 = 86286 vuelos que no tienen coincidencia. ¿A qué aeropuerto corresponden principalmente?
 
 ```{r}
 
